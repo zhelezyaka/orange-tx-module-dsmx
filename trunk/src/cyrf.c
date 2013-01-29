@@ -58,7 +58,7 @@ unsigned char const pncodes[5][9][8] = {
   /* Col 8 */ {0x03, 0xBC, 0x6E, 0x8A, 0xEF, 0xBD, 0xFE, 0xF8}
 },
 };
-unsigned char const pn_bind[] = { 0x98,0x88,0x1b,0xe4,0x30,0x79,0x03,0x84 };
+unsigned char const pn_bind[8] = { 0x98,0x88,0x1b,0xe4,0x30,0x79,0x03,0x84 };
 //=================================================================================================
 void CYRF_init(char bind){
 unsigned char temp;
@@ -86,7 +86,7 @@ unsigned char temp;
 	CYRF_write(0x92, 0x0E);//  - wr DATA64_THOLD_ADR = 0x0E 
 	CYRF_write(0x0C, 0xC0);//  - wr XTAL_CTRL_ADR XTAL - GPIO
 	CYRF_write(0x8F, 0x0C);//  - wr XACT_CFG_ADR = Synth Mode (RX)
-	if(bind){
+	if(bind == ORTX_BIND_FLAG){
 		CYRF_write(0x83, 0x3F);//TX_CFG_ADR = 64 chip codes | SDR Mode | +4 dBm
 		CYRF_write(0x90, 0x4A);//FRAMING_CFG_ADR = SOP LEN 64 chips | SOP TH = 0xA
 		CYRF_write(0x9E, 0x14);//RX_OVERRIDE_ADR = FRC RXDR | DIS RXCRC
@@ -155,4 +155,3 @@ void CYRF_read_mnfctID(void){
 	CYRF_read_block(0x25,  mnfctID, 6);
 	CYRF_write(0x25, 0x00);/* Fuses power off */
 }
-//=================================================================================================

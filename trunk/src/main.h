@@ -2,9 +2,14 @@
 #include <avr/interrupt.h>
 
 #include "cyrf.h"
+#include "dsm.h"
 
 unsigned char mnfctID[6], sop_col, data_col;
 unsigned char RXbuffer[0x10], TXbuffer[0x10];
 unsigned char channel_list[23];
+unsigned char work_mode, max_channel_num;
+unsigned int CRC_SEED;
+unsigned char tflag, tcount;
+unsigned char channelA, channelB;
 
 unsigned char spi(unsigned char data);

@@ -5,6 +5,9 @@
 #define CYRF_MOSI	0x20
 #define CYRF_SCK	0x80
 #define CYRF_SS		0x10
+#define RXC 0x02
+#define RXE 0x01
+
 
 void CYRF_init(char bind);
 void CYRF_write(unsigned char reg, unsigned char value);
@@ -13,3 +16,6 @@ void CYRF_read_block(unsigned char reg, unsigned char *pbStrPtr, unsigned char l
 void CYRF_write_block(unsigned char reg, unsigned char *pbStrPtr, unsigned char len);
 void CYRF_write_block_const(unsigned char reg, const unsigned char *pbStrPtr, unsigned char len);
 void CYRF_read_mnfctID(void);
+
+unsigned char const pncodes[5][9][8];
+unsigned char const pn_bind[8];
