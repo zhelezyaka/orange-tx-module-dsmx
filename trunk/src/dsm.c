@@ -133,6 +133,9 @@ return error_code;
 //=================================================================================================
 unsigned char transmit_receive(unsigned char channel, unsigned char control){
 unsigned char row, rssi, rx_irq_status, rx_count, error_code = 0;
+#ifdef DEBUG
+unsigned char i;
+#endif
 
 	if(control == 0 || control == 1){				//if no BIND mode
 		if(work_mode & ORTX_USE_DSMX){
@@ -181,11 +184,11 @@ unsigned char row, rssi, rx_irq_status, rx_count, error_code = 0;
 	
 	//CYRF_write(0x0E, 0x80);//XOUT = high	
 	//ждем пока не произойдет прерывание
-	//if(control & ORTX_BIND_FLAG){
+	if(control & ORTX_BIND_FLAG){
 	//tcount = 25; // 12 mSec in BIND mode
-	//}else{
+	}else{
 	//tcount = 10; // 1 mSec in normal mode telemetry answer
-	//}
+	}
 	//tflag = 1;// устанавливаем флаг	
 	do{
 		if(PORTE_IN & CYRF_IRQ){ tflag = 0; tcount = 0;}
@@ -200,24 +203,56 @@ unsigned char row, rssi, rx_irq_status, rx_count, error_code = 0;
 		if(rx_irq_status & RXC){
 //				LED_Data_ADDR &= ~LED_MASK;	//ON
 			rx_count = CYRF_read(0x09);// - rd RX_COUNT_ADR
+			
 			CYRF_read_block(0x21, RXbuffer, rx_count);//получим принятый пакет в буфер
-			if(rx_count == 0x10){
-				error_code = 1;
+			
+			#ifdef DEBUG
+				if(control == ORTX_BIND_FLAG && rx_count > 0 && rx_irq_status){
+					print_hex8(channel); put_char(' ');
+					print_hex8(rssi); put_char(' ');
+					print_hex8(rx_irq_status); put_char(' ');
+					print_hex8(CYRF_read(0x08)); put_char(' ');//RX_STATUS_ADR
+					print_hex8(CYRF_read(0x04)); put_char(' ');//TX_IRQ_STATUS_ADR
+					print_hex8(rx_count); put_char('[');
+					for(i = 0; i < rx_count; i++){
+						print_hex8(RXbuffer[i]);
+						if( (i < rx_count-1) && (i%2) )put_char('-');
+					}
+					put_char(']');
+					put_string("\r\n");
+				}
+			#endif			
+
+			if(rx_count == 0x10 && !(rx_irq_status & RXE)){
+				if(work_mode & ORTX_USE_DSMX){
+					if(RXbuffer[0] == mnfctID[0] && RXbuffer[1] == mnfctID[1]){
+						error_code = ORTX_USE_TM;	//telemetry answer
+					}
+				}else{
+					if(RXbuffer[0] == ~mnfctID[0] && RXbuffer[1] == ~mnfctID[1]){
+						error_code = ORTX_USE_TM;	//telemetry answer
+					}
+				}
 			}
-			if(control == ORTX_BIND_FLAG && rx_count == 10){
+			
+			if(control == ORTX_BIND_FLAG && rx_count == 10  && !(rx_irq_status & RXE)
+				&& RXbuffer[0] == ~mnfctID[0] && RXbuffer[1] == ~mnfctID[1]){
+				put_string("bind ok\r\n");
 				error_code = ORTX_BIND_FLAG;
 			}
 		}else{//была ошибка приема	
 			CYRF_write(0xA9, 0x20);// - wr RX_ABORT_ADR = ABORT EN
 			//пауза нужна небольшая
 			//LED_Data_ADDR |= LED_MASK;//OFF
+			CYRF_write(0x8F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
+			while(CYRF_read(0x0F) & 0x20 );
 			CYRF_write(0xA9, 0x00);// - wr RX_ABORT_ADR
 		}
 	}else{//не было прерывания
 		CYRF_write(0xA9, 0x20);// - wr RX_ABORT_ADR = ABORT EN
 		CYRF_write(0x8F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
 		while(CYRF_read(0x0F) & 0x20 );
-		CYRF_write(0xA9, 0x00);// - wr RX_ABORT_ADR*/
+		CYRF_write(0xA9, 0x00);// - wr RX_ABORT_ADR
 	}	
 
 	return error_code;
