@@ -268,6 +268,8 @@ unsigned char i;
 
 	if(top == 0){
 		for(i = 0; i < max_channel_num; i++){
+			TXbuffer[i * 2 + 2] = channelsData[i] >>8;
+			TXbuffer[i * 2 + 3] = channelsData[i] & 0xFF;
 		}
 		for(i = max_channel_num; i < 7;i++){
 			TXbuffer[i * 2 + 2] = 0xFF;//not used channels
@@ -275,11 +277,13 @@ unsigned char i;
 		}
 	}else{
 			//build transmit data for second seven channels
-			for(i = 7; i < max_channel_num; i++){
-			}
-			for(i = max_channel_num; i < 14; i++){
-				TXbuffer[(i-7) * 2 + 2] = 0xFF;//not used channels
-				TXbuffer[(i-7) * 2 + 3] = 0xFF;
-			}
+		for(i = 7; i < max_channel_num; i++){
+			TXbuffer[(i-7) * 2 + 2] = channelsData[i] >>8;
+			TXbuffer[(i-7) * 2 + 3] = channelsData[i] & 0xFF;
+		}
+		for(i = max_channel_num; i < 14; i++){
+			TXbuffer[(i-7) * 2 + 2] = 0xFF;//not used channels
+			TXbuffer[(i-7) * 2 + 3] = 0xFF;
+		}
 	}
 }

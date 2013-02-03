@@ -14,6 +14,7 @@ unsigned char work_mode, max_channel_num;
 unsigned int CRC_SEED;
 unsigned char tflag, tcount;
 unsigned char channelA, channelB;
+unsigned int channelsData[14];
 
 unsigned char spi(unsigned char data);
 void ortxTXTransmitBuffer(unsigned char i);
