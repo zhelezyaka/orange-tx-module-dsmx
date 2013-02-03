@@ -29,6 +29,7 @@ unsigned char channelA = 0, channelB = 0;
 unsigned char ortxTxBuffer[16+2], ortxRxBuffer[16+2];
 unsigned char ortxTxISRIndex = 0, ortxRxISRIndex = 0, ortxTxBufferCount = 0;
 unsigned char ortxTxStateMachine = 0;
+unsigned int channelsData[14];
 
 //=====================================================================================================================
 void init(void){
@@ -93,7 +94,7 @@ unsigned char spi(unsigned char data){
 }
 //=====================================================================================================================
 int main(void){
-//unsigned char i;
+unsigned char i;
 unsigned char dsmX_channel_index, CRC_SEED_index = 0;
 
 	init();
@@ -132,6 +133,16 @@ while(1){
 				sop_col = (~mnfctID[0] + ~mnfctID[1] + ~mnfctID[2] + 2) & 7;
 				data_col = 7 - sop_col;
 				CRC_SEED = (mnfctID[0] << 8) + mnfctID[1]; 
+			break;
+			case 0x01:												//first 7 channel data
+				for(i = 0; i < 7; i++){
+					channelsData[i] = (ortxRxBuffer[i * 2 + 2] <<8) | ortxRxBuffer[i * 2 + 3];
+				}
+			break;
+			case 0x02:												//second 7 channel data
+				for(i = 0; i < 7; i++){
+					channelsData[i + 7] = (ortxRxBuffer[i * 2 + 2] <<8) | ortxRxBuffer[i * 2 + 3];
+				}
 			break;
 			}
 		}
