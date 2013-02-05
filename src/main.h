@@ -7,6 +7,8 @@
 #include "dsm.h"
 #include "debug.h"
 
+#define LED 0x02
+
 unsigned char mnfctID[6], sop_col, data_col;
 unsigned char RXbuffer[0x10], TXbuffer[0x10];
 unsigned char channel_list[23];
