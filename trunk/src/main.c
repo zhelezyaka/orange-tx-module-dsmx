@@ -34,49 +34,90 @@ unsigned int channelsData[14];
 //=====================================================================================================================
 void init(void){
 	cli();
-	//setup GPIO mode
-	PORTE_DIRSET |= CYRF_RESET;
-	PORTE_DIRCLR &= ~CYRF_IRQ;
-	PORTD_DIRSET |= CYRF_SCK;
-	PORTD_DIRSET |= CYRF_MOSI;
-	PORTD_DIRSET |= CYRF_SS;
-	PORTD_DIRCLR &= ~CYRF_MISO;
-	PORTD_OUT |= CYRF_SS;
-	PORTE_OUT |= CYRF_RESET;
 
+	//power On to all periphery
+	PR.PRGEN = 0;
+	PR.PRPC = 0;
+	PR.PRPD = 0;
+
+	//enable interrupt
+	PMIC.CTRL = PMIC_HILVLEX_bm | PMIC_MEDLVLEX_bm | PMIC_LOLVLEX_bm;
+
+	//setup PLL, Xtall 16 MHz	
+	OSC.XOSCCTRL = OSC_FRQRANGE_12TO16_gc | OSC_XOSCSEL_XTAL_256CLK_gc; // configure the XTAL input
+	OSC.CTRL |= OSC_XOSCEN_bm; // start XTAL
+	while (!(OSC.STATUS & OSC_XOSCRDY_bm)); // wait until ready
+	OSC.PLLCTRL = OSC_PLLSRC_XOSC_gc | 0x2; // XTAL->PLL, 2x multiplier
+	OSC.CTRL |= OSC_PLLEN_bm; // start PLL
+	while (!(OSC.STATUS & OSC_PLLRDY_bm)); // wait until ready
+	CCP = CCP_IOREG_gc; // allow changing CLK.CTRL
+	CLK.PSCTRL = 0;//divA 1, divB 1, divC 1
+	CCP = CCP_IOREG_gc; // allow changing CLK.CTRL
+	CLK.CTRL = CLK_SCLKSEL_PLL_gc; // use PLL output as system clock
+
+	//setup GPIO mode	
+	PORTD.DIRSET = LED | CYRF_SCK | CYRF_MOSI | CYRF_SS;
+	PORTD.DIRCLR = CYRF_MISO;
+	PORTD.OUT |= LED | CYRF_SS;		//LED off	
+	PORTE.DIRSET = CYRF_RESET;
+	PORTE.DIRCLR = CYRF_IRQ;
+	PORTE.OUT |= CYRF_RESET;
+	
 	//init SPI
-	SPID_CTRL = SPI_ENABLE_bm | SPI_MASTER_bm | SPI_MODE_0_gc | SPI_PRESCALER_DIV64_gc;//msb firts
+	SPID.CTRL = SPI_ENABLE_bm | SPI_MASTER_bm | SPI_MODE_0_gc | SPI_PRESCALER_DIV64_gc;//msb firts
 
 	//init USART0, portC
+	PORTC.OUT |= 0x08;
+	PORTC.DIRSET = 0x08;
+	PORTC.DIRCLR = 0x04;
+	USARTC0.BAUDCTRLA = 131;
+	USARTC0.BAUDCTRLB = 0xD0;
 //	USARTC0_CTRLA = USART_RXCINTLVL_MED_gc | USART_TXCINTLVL_MED_gc | USART_DREINTLVL_OFF_gc;
 //	USARTC0_CTRLB = USART_RXEN_bm | USART_TXEN_bm;
-	USARTC0_CTRLA = USART_RXCINTLVL_MED_gc | USART_TXCINTLVL_OFF_gc | USART_DREINTLVL_OFF_gc;
-	USARTC0_CTRLB = USART_RXEN_bm;
-	USARTC0_CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_PMODE_DISABLED_gc | USART_CHSIZE_8BIT_gc;
-	USARTC0_BAUDCTRLA = 0;
-	USARTC0_BAUDCTRLB = 0;
+	USARTC0.CTRLA = USART_RXCINTLVL_MED_gc | USART_TXCINTLVL_OFF_gc | USART_DREINTLVL_OFF_gc;
+	USARTC0.CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_PMODE_DISABLED_gc | USART_CHSIZE_8BIT_gc;
+	USARTC0.CTRLB = USART_RXEN_bm;
 	
 #ifdef DEBUG
 	//init USART1, portC = PC6 - RXD1, PC7 - TXD1
-	USARTC1_CTRLA = USART_RXCINTLVL_MED_gc | USART_TXCINTLVL_MED_gc | USART_DREINTLVL_OFF_gc;
-	USARTC1_CTRLB = USART_RXEN_bm | USART_TXEN_bm;
-	USARTC1_CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_PMODE_DISABLED_gc | USART_CHSIZE_8BIT_gc;
-	USARTC1_BAUDCTRLA = 0;
-	USARTC1_BAUDCTRLB = 0;
+	PORTC.OUT |= 0x80;	
+	PORTC.DIRSET = 0x80;
+	PORTC.DIRCLR = 0x40;	
+	USARTC1.BAUDCTRLA = 131;//BSEL = 131 for 115200
+	USARTC1.BAUDCTRLB = 0xD0;//BSCALE = -3
+	USARTC1.CTRLA = USART_RXCINTLVL_MED_gc | USART_TXCINTLVL_OFF_gc | USART_DREINTLVL_OFF_gc;
+	USARTC1.CTRLC = USART_CMODE_ASYNCHRONOUS_gc | USART_PMODE_DISABLED_gc | USART_CHSIZE_8BIT_gc;
+	USARTC1.CTRLB = USART_RXEN_bm | USART_TXEN_bm;
 #endif	
+	//init TIMER0
+	TCC0.CTRLB = 0;
+	TCC0.CTRLC = 0;
+	TCC0.CTRLD = 0;
+	TCC0.CTRLE = 0;
+	TCC0.INTCTRLA = 3;
+	TCC0.INTCTRLB = 0;
+	TCC0.PER = 1000;
+	TCC0.CTRLA = 1; //div 1
+
 	sei();
 }
 //=====================================================================================================================
+ISR(TCC0_OVF_vect){/* Overflow Interrupt */
+	PORTD.OUT &= ~LED;		//LED on
+	TCC0.PER = 1000;
+	PORTD.OUT |= LED;		//LED off
+}
+//================================================================================================================================================
 ISR(USARTC0_RXC_vect){/* Reception Complete Interrupt */
 	if(ortxRxISRIndex < 18){
-		ortxRxBuffer[ortxRxISRIndex++] = USARTC0_DATA;
+		ortxRxBuffer[ortxRxISRIndex++] = USARTC0.DATA;
 	}
 }
 //================================================================================================================================================
 ISR(USARTC0_TXC_vect){/* Transmission Complete Interrupt */
 	if(ortxTxBufferCount){
 		ortxTxBufferCount--;
-		USARTC0_DATA = ortxTxBuffer[ortxTxISRIndex++];
+		USARTC0.DATA = ortxTxBuffer[ortxTxISRIndex++];
 	}
 }
 //================================================================================================================================================
@@ -84,13 +125,13 @@ void ortxTXTransmitBuffer(unsigned char i){
   while(ortxTxBufferCount);
   ortxTxISRIndex = 0;
   ortxTxBufferCount = i - 1;
-  USARTC0_DATA = ortxTxBuffer[ortxTxISRIndex++];
+  USARTC0.DATA = ortxTxBuffer[ortxTxISRIndex++];
 }
 //=====================================================================================================================
 unsigned char spi(unsigned char data){
-	SPID_DATA = data;
-	while( ! (SPID_STATUS & SPI_IF_bm ) );	// Ensure the transmit buffer is free
-	return SPID_DATA;
+	SPID.DATA = data;
+	while( ! (SPID.STATUS & SPI_IF_bm ) );	// Ensure the transmit buffer is free
+	return SPID.DATA;
 }
 //=====================================================================================================================
 int main(void){
@@ -99,8 +140,12 @@ unsigned char dsmX_channel_index, CRC_SEED_index = 0;
 
 	init();
 	
-	put_string("CYRF ");
+	//put_char(0xa5);
+	put_string(" CYRF\r\n");	
+//for(dsmX_channel_index=0;dsmX_channel_index<100;dsmX_channel_index++){for(i=0;i<255;i++)asm("nop");}
 	print_hex8(0x8A);
+//for(dsmX_channel_index=0;dsmX_channel_index<200;dsmX_channel_index++){for(i=0;i<255;i++)asm("nop");}
+	print_hex8(0x73);
 
 	CYRF_init(0);// normal mode
 	
