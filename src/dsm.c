@@ -73,11 +73,14 @@ unsigned char c = 0, k, part1 = 8, part2 = 7, part3 = 8, flag = 0;
 //	TX8_1_PutChar('/');TX8_1_PutCRLF();
 }
 //=================================================================================================
-void generateDSM2channel(void){
+void generateDSM2channel(void){/*
     channelA = (mnfctID[0] + mnfctID[2] + mnfctID[4]
                    + ((~mnfctID[0]) & 0xff) + ((~mnfctID[2]) & 0xff)) % 39 + 1;
     channelB = (mnfctID[1] + mnfctID[3] + mnfctID[5]
-                   + ((~mnfctID[1]) & 0xff) + ((~mnfctID[3]) & 0xff)) % 40 + 40;
+                   + ((~mnfctID[1]) & 0xff) + ((~mnfctID[3]) & 0xff)) % 40 + 40;*/
+				   
+	channelA = 8;
+	channelB = 40;
 }
 //=================================================================================================
 unsigned char generateBINDchannel(void){
@@ -88,8 +91,8 @@ unsigned char BIND_procedure(void){
 unsigned int temp_int;
 unsigned char i, loop, error_code = 0;
 
-	TXbuffer[0] = ~mnfctID[0]; TXbuffer[1] = ~mnfctID[1];
-	TXbuffer[2] = ~mnfctID[2]; TXbuffer[3] = ~mnfctID[3];
+	TXbuffer[0] = (0xFF - mnfctID[0]); TXbuffer[1] = (0xFF - mnfctID[1]);
+	TXbuffer[2] = (0xFF - mnfctID[2]); TXbuffer[3] = (0xFF - mnfctID[3]);
 	TXbuffer[4] = TXbuffer[0]; TXbuffer[5] = TXbuffer[1];
 	TXbuffer[6] = TXbuffer[2]; TXbuffer[7] = TXbuffer[3];
 	temp_int = 0x170;//CRC constant
@@ -119,12 +122,12 @@ unsigned char i, loop, error_code = 0;
 	TXbuffer[14] = temp_int >> 8; TXbuffer[15] = temp_int & 0xFF;
 	
 	i = generateBINDchannel();
-	loop = 100;
+	loop = 1000;
 	do{
 		loop--;
 		CYRF_init(ORTX_BIND_FLAG);// bind mode
 		if( transmit_receive(i , ORTX_BIND_FLAG) == ORTX_BIND_FLAG){
-			loop = 0;
+//			loop = 0;
 			error_code = 1;
 		}
 	}while(loop);
@@ -132,71 +135,85 @@ return error_code;
 }
 //=================================================================================================
 unsigned char transmit_receive(unsigned char channel, unsigned char control){
-unsigned char row, rssi, rx_irq_status, rx_count, error_code = 0;
+unsigned char row, rssi, rx_irq_status, rx_count, error_code = 0, XACT_CFG_ADR;
 #ifdef DEBUG
 unsigned char i;
 #endif
 
 	if(control == 0 || control == 1){				//if no BIND mode
-		if(work_mode & ORTX_USE_DSMX){
-			row = (channel - 2) % 5;//ok!
-		}else{
+//		if(work_mode & ORTX_USE_DSMX){
+//			row = (channel - 2) % 5;//ok!
+//		}else{
 			row = channel % 5;
-		}
-
+//		}
+//put_string("row "); print_hex8(row);
 		if(control){
-			CYRF_write(0x15, ~(CRC_SEED & 0xFF));
-			CYRF_write(0x16, ~(CRC_SEED >> 8));
+			CYRF_write(0x15, 0xFF - (CRC_SEED & 0xFF));
+			CYRF_write(0x16, 0xFF - (CRC_SEED >> 8));
 		}else{
 			CYRF_write(0x15, CRC_SEED & 0xFF);
 			CYRF_write(0x16, CRC_SEED >> 8);
 		}
-		CYRF_write_block_const(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
-		CYRF_write_block_const(0xA3, &pncodes[row][data_col][0], 8);	//load DATA
-		CYRF_write_block_const(0xA3, &pncodes[row][data_col+1][0], 8);
+//		CYRF_write_block_const(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
+//		CYRF_write_block_const(0xA3, &pncodes[row][data_col][0], 8);	//load DATA
+//		CYRF_write_block_const(0xA3, &pncodes[row][data_col+1][0], 8);
+		CYRF_write_block(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
+		CYRF_write_block(0xA3, &pncodes[row][data_col][0], 8);	//load DATA
+		CYRF_write_block(0xA3, &pncodes[row][data_col+1][0], 8);
 	}
 	
 	CYRF_write(0x80, channel);//  - wr CHANNEL_ADR	
-
+	
+	PORTD.OUTSET = LED;		//LED off
+	
 	//transmit packet
-	//CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
+	CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
 	CYRF_write(0x02, 0x40); //TX_CTRL_ADR = TX CLR				
 	CYRF_write_block(0x20, TXbuffer, 0x10);
 	CYRF_write(0x01, 0x10); //TX_LENGTH_ADR
-	CYRF_write(0x02, 0x82); //TX_CTRL_ADR
+	CYRF_write(0x02, 0x83); //TX_CTRL_ADR = TX GO | TXC | TXE
 	//подождем пока все уйдет
-//		tcount = 20; // 0,5 mSec
-//		tflag = 1;// устанавливаем флаг
-//		do{
-//			if(CYRF_read(0x04) & 0x02){ tflag = 0; tcount = 0;}
-//		}while( tflag );
-	while( ! (CYRF_read(0x04) & 0x02) );
-	//CYRF_write(0x0E,0x00);//all GPIO - low
-	
+	if(control == ORTX_BIND_FLAG){
+		tcount = 120; // 12 mSec
+	}else{
+		tcount = 10; // 1 mSec
+	}
+	tflag = 1;// устанавливаем флаг
+	do{
+		if(CYRF_read(0x04) & 0x02){ tcount = 0; /*tflag = 0;*/ }
+	}while( tflag);
+	//while( ! (CYRF_read(0x04) & 0x02) );
+	CYRF_write(0x0E,0x00);//all GPIO - low
+//print_hex8(CYRF_read(0x04)); put_char(' ');//TX_IRQ_STATUS_ADR	
+	PORTD.OUTCLR = LED;		//LED on
 	//todo: check for error transmition
 
 	if(control == ORTX_BIND_FLAG){
 		CYRF_write_block_const(0xA3, &pn_bind[0], 8);
 	}
+
 	//receive packet
 	CYRF_write(0x85, 0x83);//  - wr RX_CTRL_ADR = RX GO | RXC IRQEN | RXE IRQEN 
 	rssi = CYRF_read(0x13);//  - rd RSSI_ADR 
 	
-	//CYRF_write(0x0E, 0x80);//XOUT = high	
+	PORTD.OUTSET = LED;		//LED off
+
 	//ждем пока не произойдет прерывание
 	if(control & ORTX_BIND_FLAG){
-	//tcount = 25; // 12 mSec in BIND mode
+		tcount = 120; // 12 mSec in BIND mode
 	}else{
-	//tcount = 10; // 1 mSec in normal mode telemetry answer
+		tcount = 10; // 1 mSec in normal mode telemetry answer
 	}
-	//tflag = 1;// устанавливаем флаг	
+	tflag = 1;// устанавливаем флаг	
 	do{
-		if(PORTE_IN & CYRF_IRQ){ tflag = 0; tcount = 0;}
+		if(PORTE.IN & CYRF_IRQ){ tcount = 0; tflag = 0;}
 	}while( tflag );
 
+	PORTD.OUTCLR = LED;		//LED on
+//put_char('=');
 	//CYRF_write(0x0E, 0x00);//XOUT = low
-	
-	if(PORTE_IN & CYRF_IRQ){		//прерывание было
+
+	if(PORTE.IN & CYRF_IRQ){		//прерывание было
 		rssi = CYRF_read(0x13);//  - rd RSSI_ADR 
 		rx_irq_status = CYRF_read(0x07);
 		//был принят пакет
@@ -208,7 +225,7 @@ unsigned char i;
 			
 			#ifdef DEBUG
 				if(control == ORTX_BIND_FLAG && rx_count > 0 && rx_irq_status){
-					print_hex8(channel); put_char(' ');
+					//print_hex8(channel); put_char(' ');
 					print_hex8(rssi); put_char(' ');
 					print_hex8(rx_irq_status); put_char(' ');
 					print_hex8(CYRF_read(0x08)); put_char(' ');//RX_STATUS_ADR
@@ -218,8 +235,7 @@ unsigned char i;
 						print_hex8(RXbuffer[i]);
 						if( (i < rx_count-1) && (i%2) )put_char('-');
 					}
-					put_char(']');
-					put_string("\r\n");
+					put_string("]\r\n");
 				}
 			#endif			
 
@@ -229,30 +245,37 @@ unsigned char i;
 						error_code = ORTX_USE_TM;	//telemetry answer
 					}
 				}else{
-					if(RXbuffer[0] == ~mnfctID[0] && RXbuffer[1] == ~mnfctID[1]){
+					if(RXbuffer[0] == (0xFF - mnfctID[0]) && RXbuffer[1] == (0xFF - mnfctID[1]) ){
 						error_code = ORTX_USE_TM;	//telemetry answer
 					}
 				}
 			}
 			
-			if(control == ORTX_BIND_FLAG && rx_count == 10  && !(rx_irq_status & RXE)
-				&& RXbuffer[0] == ~mnfctID[0] && RXbuffer[1] == ~mnfctID[1]){
+			if(control == ORTX_BIND_FLAG && rx_count == 10//  && !(rx_irq_status & RXE)
+				&& RXbuffer[0] == (0xFF - mnfctID[0]) && RXbuffer[1] == (0xFF - mnfctID[1]) ){
 				put_string("bind ok\r\n");
 				error_code = ORTX_BIND_FLAG;
 			}
 		}else{//была ошибка приема	
-			CYRF_write(0xA9, 0x20);// - wr RX_ABORT_ADR = ABORT EN
+			//CYRF_write(0x29, 0x20);// - wr RX_ABORT_ADR = ABORT EN
 			//пауза нужна небольшая
 			//LED_Data_ADDR |= LED_MASK;//OFF
 			CYRF_write(0x8F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
+//put_char('a');
 			while(CYRF_read(0x0F) & 0x20 );
-			CYRF_write(0xA9, 0x00);// - wr RX_ABORT_ADR
+//put_char('b');			
+			//CYRF_write(0x29, 0x00);// - wr RX_ABORT_ADR
 		}
 	}else{//не было прерывания
-		CYRF_write(0xA9, 0x20);// - wr RX_ABORT_ADR = ABORT EN
-		CYRF_write(0x8F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
-		while(CYRF_read(0x0F) & 0x20 );
-		CYRF_write(0xA9, 0x00);// - wr RX_ABORT_ADR
+		//CYRF_write(0x29, 0x20);// - wr RX_ABORT_ADR = ABORT EN
+		//asm("nop");asm("nop");asm("nop");asm("nop");asm("nop");asm("nop");
+		CYRF_write(0x0F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
+//put_char('c');
+		do{
+			XACT_CFG_ADR = CYRF_read(0x0F);
+		}while(XACT_CFG_ADR & 0x20 );
+//put_char('d');
+		//CYRF_write(0x29, 0x00);// - wr RX_ABORT_ADR
 	}	
 
 	return error_code;
@@ -263,9 +286,9 @@ unsigned char i;
 	if(work_mode & ORTX_USE_DSMX){
 		TXbuffer[0] = mnfctID[2]; TXbuffer[1] = mnfctID[3];
 	}else{
-		TXbuffer[0] = ~mnfctID[2]; TXbuffer[1] = ~mnfctID[3];
+		TXbuffer[0] = (0xFF - mnfctID[2]); TXbuffer[1] = (0xFF - mnfctID[3]);
 	}
-
+/*
 	if(top == 0){
 		for(i = 0; i < max_channel_num; i++){
 			TXbuffer[i * 2 + 2] = channelsData[i] >>8;
@@ -286,4 +309,22 @@ unsigned char i;
 			TXbuffer[(i-7) * 2 + 3] = 0xFF;
 		}
 	}
+*/
+			TXbuffer[2]= (0<<2) | 0x02; TXbuffer[3]=0x00;
+			TXbuffer[4]= (1<<2) | 0x02; TXbuffer[5]=0x00;
+			TXbuffer[6]= (2<<2) | 0x02; TXbuffer[7]=0x00;
+			TXbuffer[8]= (3<<2) | 0x02; TXbuffer[9]=0x00;
+			TXbuffer[10]= (4<<2) | 0x02; TXbuffer[11]=0x00;
+			TXbuffer[12]= (5<<2) | 0x02; TXbuffer[13]=0x00;
+			TXbuffer[14]= (6<<2) | 0x02; TXbuffer[15]=0x00;
 }
+/*
+	mnfctID[0] = 0x6d; mnfctID[1] = 0x39; mnfctID[2] = 0xa7; mnfctID[3] = 0xF5; //my
+ответ при BIND:
+09 BC 5A 17 B8 0A[92C6-580A-0106-0100-0332]
+chan 0x16 0x43
+sop_col 07
+CRC_SEED 92C6
+
+
+*/

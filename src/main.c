@@ -3,18 +3,19 @@
 PC2 - RXD0 \
 PC3 - TXD0 / to PPM input
 PC5 - buzzer
-PD0 - button
+PC6 - RXD1
+PC7 - TXD1
+PD0 - cahnge ID button
 PD1 - LED to VCC
-PD2 - button
-
-PE1 - CYRF IRQ
-PE0 - CYRF reset
-PD7 - CYRF SCK
-PD6 - CYRF MISO
-PD5 - CYRF MOSI
-PD4 - CYRF SS
+PD2 - BIND button
 PD3 - inverted PPM input
 
+PD4 - CYRF SS
+PD5 - CYRF MOSI
+PD6 - CYRF MISO
+PD7 - CYRF SCK
+PE0 - CYRF reset
+PE1 - CYRF IRQ
 */
 
 #include "main.h"
@@ -24,7 +25,8 @@ unsigned char RXbuffer[0x10], TXbuffer[0x10];
 unsigned char channel_list[23];
 unsigned char work_mode = 0, max_channel_num = 8, power = 7;
 unsigned int CRC_SEED;
-unsigned char tflag = 0, tcount = 0;
+unsigned char tflag = 0, main_tflag = 0;
+unsigned int tcount = 0, main_tcount = 0;
 unsigned char channelA = 0, channelB = 0;
 unsigned char ortxTxBuffer[16+2], ortxRxBuffer[16+2];
 unsigned char ortxTxISRIndex = 0, ortxRxISRIndex = 0, ortxTxBufferCount = 0;
@@ -56,18 +58,21 @@ void init(void){
 	CLK.CTRL = CLK_SCLKSEL_PLL_gc; // use PLL output as system clock
 
 	//setup GPIO mode	
+	PORTD.OUTSET = LED | CYRF_SS | ID_button | BIND_button;		//LED off	
 	PORTD.DIRSET = LED | CYRF_SCK | CYRF_MOSI | CYRF_SS;
-	PORTD.DIRCLR = CYRF_MISO;
-	PORTD.OUT |= LED | CYRF_SS;		//LED off	
+	PORTD.DIRCLR = CYRF_MISO | ID_button | BIND_button;
+	PORTD.PIN0CTRL = PORT_OPC_PULLUP_gc;//ID_button
+	PORTD.PIN2CTRL = PORT_OPC_PULLUP_gc;//BIND_button
 	PORTE.DIRSET = CYRF_RESET;
 	PORTE.DIRCLR = CYRF_IRQ;
-	PORTE.OUT |= CYRF_RESET;
+	PORTE.OUTSET = CYRF_RESET;
 	
 	//init SPI
-	SPID.CTRL = SPI_ENABLE_bm | SPI_MASTER_bm | SPI_MODE_0_gc | SPI_PRESCALER_DIV64_gc;//msb firts
+	//SPID.CTRL = SPI_ENABLE_bm | SPI_MASTER_bm | SPI_MODE_0_gc | SPI_PRESCALER_DIV64_gc;//msb first
+	SPID.CTRL = SPI_ENABLE_bm | SPI_MASTER_bm | SPI_MODE_0_gc | SPI_PRESCALER_DIV16_gc;//msb first
 
 	//init USART0, portC
-	PORTC.OUT |= 0x08;
+	PORTC.OUTSET = 0x08;
 	PORTC.DIRSET = 0x08;
 	PORTC.DIRCLR = 0x04;
 	USARTC0.BAUDCTRLA = 131;
@@ -80,7 +85,7 @@ void init(void){
 	
 #ifdef DEBUG
 	//init USART1, portC = PC6 - RXD1, PC7 - TXD1
-	PORTC.OUT |= 0x80;	
+	PORTC.OUTSET = 0x80;	
 	PORTC.DIRSET = 0x80;
 	PORTC.DIRCLR = 0x40;	
 	USARTC1.BAUDCTRLA = 131;//BSEL = 131 for 115200
@@ -96,16 +101,22 @@ void init(void){
 	TCC0.CTRLE = 0;
 	TCC0.INTCTRLA = 3;
 	TCC0.INTCTRLB = 0;
-	TCC0.PER = 1000;
+	TCC0.PER = 3200;
 	TCC0.CTRLA = 1; //div 1
 
 	sei();
 }
 //=====================================================================================================================
 ISR(TCC0_OVF_vect){/* Overflow Interrupt */
-	PORTD.OUT &= ~LED;		//LED on
-	TCC0.PER = 1000;
-	PORTD.OUT |= LED;		//LED off
+	//PORTD.OUTCLR = LED;		//LED on
+	TCC0.PER = 3200;					//100 us
+	//PORTD.OUTSET = LED;		//LED off
+	
+	if(tcount)		tcount--;
+	else		tflag = 0;
+	if(main_tcount)		main_tcount--;
+	else		main_tflag = 0;
+	
 }
 //================================================================================================================================================
 ISR(USARTC0_RXC_vect){/* Reception Complete Interrupt */
@@ -140,15 +151,24 @@ unsigned char dsmX_channel_index, CRC_SEED_index = 0;
 
 	init();
 	
-	//put_char(0xa5);
-	put_string(" CYRF\r\n");	
-//for(dsmX_channel_index=0;dsmX_channel_index<100;dsmX_channel_index++){for(i=0;i<255;i++)asm("nop");}
-	print_hex8(0x8A);
-//for(dsmX_channel_index=0;dsmX_channel_index<200;dsmX_channel_index++){for(i=0;i<255;i++)asm("nop");}
-	print_hex8(0x73);
+	put_string("\r\nCYRF\r\n");	//	print_hex8(0x8A); //put_char(0xa5);
 
 	CYRF_init(0);// normal mode
-	
+	CYRF_read_mnfctID();
+	print_hex8(mnfctID[0]);print_hex8(mnfctID[1]);print_hex8(mnfctID[2]);print_hex8(mnfctID[3]);//print_hex8(mnfctID[4]);print_hex8(mnfctID[5]);
+
+	if( ! (PORTD.IN & BIND_button)){
+		put_string(" BIND\r\n");
+		ortxRxBuffer[2] = ORTX_BIND_FLAG;
+	}else{
+		ortxRxBuffer[2] = 0;
+	}
+		ortxRxISRIndex = 18;
+		ortxRxBuffer[0] = 0xAA;
+		ortxRxBuffer[1] = 0;
+		ortxRxBuffer[3] = 0;
+		ortxRxBuffer[4] = 6;
+		ortxRxBuffer[5] = 0;
 
 while(1){
 
@@ -175,9 +195,13 @@ while(1){
 				}else{
 					generateDSM2channel();
 				}
-				sop_col = (~mnfctID[0] + ~mnfctID[1] + ~mnfctID[2] + 2) & 7;
+				//sop_col = ((0xFF - mnfctID[0]) + (0xFF - mnfctID[1]) + (0xFF - mnfctID[2]) + 2) & 7;
+				sop_col = (mnfctID[0] + mnfctID[1] + mnfctID[2] + 2) & 7;
 				data_col = 7 - sop_col;
-				CRC_SEED = (mnfctID[0] << 8) + mnfctID[1]; 
+				//CRC_SEED = (mnfctID[0] << 8) + mnfctID[1]; 
+				CRC_SEED = 0xFFFF - (( mnfctID[0] << 8) | mnfctID[1]);
+				put_string("CRC_SEED "); print_hex8(CRC_SEED>>8);print_hex8(CRC_SEED);
+				put_string("sop_col "); print_hex8(sop_col);
 			break;
 			case 0x01:												//first 7 channel data
 				for(i = 0; i < 7; i++){
@@ -207,22 +231,37 @@ while(1){
 //DSM2 mode	
 		//build transmit data for first seven channels
 		buildTransmitBuffer(0);
+		main_tcount = 40; // - пауза между каналами 4 мсек
+		main_tflag = 1;
 		transmit_receive(channelA, 0);
-		// - пауза между каналами 4 мсек
+		while(main_tflag);
+		main_tcount = 70; // 7 mSec
+		main_tflag = 1;
 		TXbuffer[2] |= 0x80;
 		transmit_receive(channelB, 1);
-		//далее большая пауза
+		while(main_tflag);
+
 		if(max_channel_num > 7){
+			main_tcount = 40; // - пауза между каналами 4 мсек
+			main_tflag = 1;
 			buildTransmitBuffer(1);
-			transmit_receive(channelA, 0);
-			// - пауза между каналами 4 мсек
-			transmit_receive(channelB, 1);
-			//далее большая пауза		
+			transmit_receive(channelA, 0);			
+			while(main_tflag);
+			main_tcount = 70; // 7 mSec
+			transmit_receive(channelB, 1);			
+			main_tflag = 1;
+			while(main_tflag);
 		}else{
+/*			main_tcount = 40;
 			buildTransmitBuffer(0);
 			transmit_receive(channelA, 0);
-			TXbuffer[2] |= 0x80;
-			transmit_receive(channelB, 1);		
+			main_tflag = 1; while(main_tflag);
+			//TXbuffer[2] |= 0x80;
+			main_tcount = 70;
+			transmit_receive(channelB, 1);
+			main_tflag = 1; while(main_tflag);
+*/
+			main_tcount = 110 ;main_tflag = 1; while(main_tflag);
 		}
 	}
 
