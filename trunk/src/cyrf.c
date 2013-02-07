@@ -1,5 +1,7 @@
 #include "main.h"
 
+unsigned char ddd=4;
+
 unsigned char const pncodes[5][9][8] = {
     /* Note these are in order transmitted (LSB 1st) */
 { /* Row 0 */
@@ -62,9 +64,9 @@ unsigned char const pn_bind[8] = { 0x98,0x88,0x1b,0xe4,0x30,0x79,0x03,0x84 };
 //=================================================================================================
 void CYRF_init(char bind){
 unsigned char temp;
-	PORTE_OUT |= CYRF_RESET;
+	PORTE.OUTSET = CYRF_RESET;
 	for(temp = 0; temp < 20; temp++)asm("nop");
-	PORTE_OUT &= ~CYRF_RESET;
+	PORTE.OUTCLR = CYRF_RESET;
 	for(temp = 0; temp < 20; temp++)asm("nop");
 
 	CYRF_write(0x9D, 0x01);//  - wr MODE_OVERRIDE_ADR = RST
@@ -103,55 +105,71 @@ unsigned char temp;
 }
 //=================================================================================================
 void CYRF_write(unsigned char reg, unsigned char value){
-	PORTD_OUT &= ~CYRF_SS;
+	PORTD.OUTCLR = CYRF_SS;
 	spi(reg | 0x80);
 	spi(value);
-	PORTD_OUT |= CYRF_SS;
+	PORTD.OUTSET = CYRF_SS;
 }
 //=================================================================================================
 unsigned char CYRF_read(unsigned char reg){
 unsigned char value = 0;
 	reg &= ~0x80;	//read mode
-	PORTD_OUT &= ~CYRF_SS;
+	PORTD.OUTCLR = CYRF_SS;
 	spi(reg);
 	value = spi(0);
-	PORTD_OUT |= CYRF_SS;
+	PORTD.OUTSET = CYRF_SS;
 return value;
 }
 //=================================================================================================
 void CYRF_read_block(unsigned char reg, unsigned char *pbStrPtr, unsigned char len){
 	reg &= ~0x80;	//read mode
-	PORTD_OUT &= ~CYRF_SS;
+	PORTD.OUTCLR = CYRF_SS;
 	spi(reg);
 	while(len){
 		*pbStrPtr++ = spi(0);
 		len--;
 	}
-	PORTD_OUT |= CYRF_SS;
+	PORTD.OUTSET = CYRF_SS;
 }
 //=================================================================================================
 void CYRF_write_block(unsigned char reg, unsigned char *pbStrPtr, unsigned char len){
-	PORTD_OUT &= ~CYRF_SS;
-	spi(reg | 0x80);
+
+	reg |= 0x80;
+#ifdef DEBUG
+	if(ddd){
+		print_hex8(reg);
+	}
+#endif
+	PORTD.OUTCLR = CYRF_SS;
+	spi(reg);
 	while(len){
+#ifdef DEBUG
+	if(ddd){
+		print_hex8(*pbStrPtr);
+	}
+#endif
 		spi(*pbStrPtr++);
 		len--;
 	}
-	PORTD_OUT |= CYRF_SS;
+	PORTD.OUTSET = CYRF_SS;
+	if(ddd)	ddd--;
 }
 //=================================================================================================
 void CYRF_write_block_const(unsigned char reg, const unsigned char *pbStrPtr, unsigned char len){
-	PORTD_OUT &= ~CYRF_SS;
-	spi(reg | 0x80);
+	reg |= 0x80;
+	PORTD.OUTCLR = CYRF_SS;
+	spi(reg);
 	while(len){
 		spi(*pbStrPtr++);
 		len--;
 	}
-	PORTD_OUT |= CYRF_SS;
+	PORTD.OUTSET = CYRF_SS;
 }
 //=================================================================================================
 void CYRF_read_mnfctID(void){
 	CYRF_write(0x25, 0xFF);/* Fuses power on */
 	CYRF_read_block(0x25,  mnfctID, 6);
 	CYRF_write(0x25, 0x00);/* Fuses power off */
+//	mnfctID[0] = 0x6d; mnfctID[1] = 0x39; mnfctID[2] = 0xa7; mnfctID[3] = 0xF5; //my
+//	mnfctID[4] = 0x17; mnfctID[5] = 0x45;
 }

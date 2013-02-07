@@ -55,6 +55,7 @@ put_char('0');
 put_char('x');
 put_char(hex[ x>>4 ]);
 put_char(hex[ x & 0x0F ] );
+put_char(' ');
 /*	while(debugTxBufferCount); 
  	debugTxBuffer[0] = '0';
 	debugTxBuffer[1] = 'x';
