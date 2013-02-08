@@ -1,6 +1,6 @@
 #include "main.h"
 
-unsigned char ddd=4;
+//unsigned char ddd=4;
 
 unsigned char const pncodes[5][9][8] = {
     /* Note these are in order transmitted (LSB 1st) */
@@ -135,24 +135,24 @@ void CYRF_read_block(unsigned char reg, unsigned char *pbStrPtr, unsigned char l
 void CYRF_write_block(unsigned char reg, unsigned char *pbStrPtr, unsigned char len){
 
 	reg |= 0x80;
-#ifdef DEBUG
-	if(ddd){
-		print_hex8(reg);
-	}
-#endif
+//#ifdef DEBUG
+//	if(ddd){
+//		print_hex8(reg);
+//	}
+//#endif
 	PORTD.OUTCLR = CYRF_SS;
 	spi(reg);
 	while(len){
-#ifdef DEBUG
-	if(ddd){
-		print_hex8(*pbStrPtr);
-	}
-#endif
+//#ifdef DEBUG
+//	if(ddd){
+//		print_hex8(*pbStrPtr);
+//	}
+//#endif
 		spi(*pbStrPtr++);
 		len--;
 	}
 	PORTD.OUTSET = CYRF_SS;
-	if(ddd)	ddd--;
+//	if(ddd)	ddd--;
 }
 //=================================================================================================
 void CYRF_write_block_const(unsigned char reg, const unsigned char *pbStrPtr, unsigned char len){
@@ -167,9 +167,12 @@ void CYRF_write_block_const(unsigned char reg, const unsigned char *pbStrPtr, un
 }
 //=================================================================================================
 void CYRF_read_mnfctID(void){
-	CYRF_write(0x25, 0xFF);/* Fuses power on */
-	CYRF_read_block(0x25,  mnfctID, 6);
-	CYRF_write(0x25, 0x00);/* Fuses power off */
-//	mnfctID[0] = 0x6d; mnfctID[1] = 0x39; mnfctID[2] = 0xa7; mnfctID[3] = 0xF5; //my
+//	CYRF_write(0x25, 0xFF);/* Fuses power on */
+//	CYRF_read_block(0x25,  mnfctID, 6);
+//	CYRF_write(0x25, 0x00);/* Fuses power off */
+//	mnfctID[0] = 0x6d; mnfctID[1] = 0x39; mnfctID[2] = 0xa7; mnfctID[3] = 0xF5; //my DX8
 //	mnfctID[4] = 0x17; mnfctID[5] = 0x45;
+	mnfctID[0] = 0xc5; mnfctID[1] = 0x8d; mnfctID[2] = 0x55; mnfctID[3] = 0x3a;//orange TX
+	//mnfctID[0] = 0x3a; mnfctID[1] = 0x72; mnfctID[2] = 0xaa; mnfctID[3] = 0xc5; //orange TX invers
+	//mnfctID[0] = 0x92; mnfctID[1] = 0xc6; mnfctID[2] = 0x50; mnfctID[3] = 0x0a;
 }
