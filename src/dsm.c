@@ -114,15 +114,16 @@ unsigned char i, error_code = 0;
 	TXbuffer[8] = temp_int >> 8; TXbuffer[9] = temp_int & 0xFF;
 	TXbuffer[10] = 0x01;//Unknown (value = 0x01)
 	TXbuffer[11] = max_channel_num;//# of channels being transmitted			
+//0xB2 - 11 msec
 	if(max_channel_num < 8){
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xb2;
+			TXbuffer[12] = 0xA2;
 		}else{
 			TXbuffer[12] = 0x01;
 		}
 	}else{
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xb2;
+			TXbuffer[12] = 0xA2;
 		}else{
 			TXbuffer[12] = 0x02;
 		}
@@ -134,7 +135,7 @@ unsigned char i, error_code = 0;
 	TXbuffer[14] = temp_int >> 8; TXbuffer[15] = temp_int & 0xFF;
 	
 	i = generateBINDchannel();
-	loop = 300;
+	loop = 200;
 	do{
 		loop--;
 		CYRF_init(ORTX_BIND_FLAG);// bind mode
@@ -155,22 +156,16 @@ unsigned char i;
 	if(control == 0 || control == 1){				//if no BIND mode
 		if(work_mode & ORTX_USE_DSMX){
 			row = (channel - 2) % 5;
-			if(control){
-				CYRF_write(0x15, mnfctID[1]);
-				CYRF_write(0x16, mnfctID[0]);
-			}else{
-				CYRF_write(0x15, 0xff - mnfctID[1]);
-				CYRF_write(0x16, 0xff - mnfctID[0]);
-			}
 		}else{
 			row = channel % 5;
-			if(control){
-				CYRF_write(0x15, 0xFF - (CRC_SEED & 0xFF));
-				CYRF_write(0x16, 0xFF - (CRC_SEED >> 8));
-			}else{
-				CYRF_write(0x15, CRC_SEED & 0xFF);
-				CYRF_write(0x16, CRC_SEED >> 8);
-			}
+		}
+
+		if(control){
+			CYRF_write(0x15, mnfctID[1]);
+			CYRF_write(0x16, mnfctID[0]);
+		}else{
+			CYRF_write(0x15, 0xff - mnfctID[1]);
+			CYRF_write(0x16, 0xff - mnfctID[0]);
 		}
 
 		CYRF_write_block_const(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
@@ -318,7 +313,7 @@ void buildTransmitBuffer(unsigned char top){
 	}
 */
 	if(work_mode & ORTX_USE_11bit){
-			TXbuffer[2]= (0<<3) | 0x04; TXbuffer[3]=0x00;
+			TXbuffer[2]= (0<<3) | 0x00; TXbuffer[3]=0x00;
 			TXbuffer[4]= (1<<3) | 0x04; TXbuffer[5]=0x00;
 			TXbuffer[6]= (2<<3) | 0x04; TXbuffer[7]=0x00;
 			TXbuffer[8]= (3<<3) | 0x04; TXbuffer[9]=0x00;

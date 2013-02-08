@@ -159,15 +159,15 @@ unsigned char dsmX_channel_index, CRC_SEED_index = 0;
 
 	if( ! (PORTD.IN & BIND_button)){
 		put_string(" BIND\r\n");
-		ortxRxBuffer[2] = ORTX_BIND_FLAG | ORTX_USE_DSMX | ORTX_USE_11bit;
+		ortxRxBuffer[2] = ORTX_BIND_FLAG;// | ORTX_USE_DSMX | ORTX_USE_11bit;
 	}else{
-		ortxRxBuffer[2] = 0 | ORTX_USE_DSMX | ORTX_USE_11bit;
+		ortxRxBuffer[2] = 0;// | ORTX_USE_DSMX | ORTX_USE_11bit;
 	}
 		ortxRxISRIndex = 18;
 		ortxRxBuffer[0] = 0xAA;
 		ortxRxBuffer[1] = 0;
-		ortxRxBuffer[3] = 7;//power
-		ortxRxBuffer[4] = 8;
+		ortxRxBuffer[3] = 0;//7;//power
+		ortxRxBuffer[4] = 6;
 		ortxRxBuffer[5] = 0;
 
 while(1){
@@ -223,11 +223,13 @@ while(1){
 			//промежканальная пауза
 			if(CRC_SEED_index){
 				//main_tcount = 185;
-				main_tcount = 100;
+				//main_tcount = 100;
+				main_tcount = 70;
 			}else{
 				main_tcount = 40;
 			}
 			buildTransmitBuffer(CRC_SEED_index);
+			if(CRC_SEED_index == 0)TXbuffer[2] |= 0x80;
 			transmit_receive(channel_list[dsmX_channel_index], CRC_SEED_index);
 			main_tflag = 1; while(main_tflag);
 			
