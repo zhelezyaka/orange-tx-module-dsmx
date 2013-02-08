@@ -7,12 +7,24 @@ unsigned long calc;
 unsigned long channel;
 unsigned char c = 0, k, part1 = 8, part2 = 7, part3 = 8, flag = 0;
 
+put_string("\r\ndsmX = ");
+
     for(k = 0; k < 23; k++){
         channel_list[k] = 0xFF;//init channel list
     }
 
     //init randomize function
-    calc = *(unsigned long *)&mnfctID[0];
+    //calc = *(unsigned long *)&mnfctID[0];
+calc = mnfctID[0];
+calc = calc << 8;
+calc |= mnfctID[1];
+calc = calc << 8;
+calc |= mnfctID[2];
+calc = calc << 8;
+calc |= mnfctID[3];
+
+calc = 0xFFFFFFFF - calc;
+print_hex8(calc>>24);print_hex8(calc>>16);print_hex8(calc>>8);print_hex8(calc);put_string(" = ");
 	do{
 		calc *= 0x0019660D;//randomize function
         calc += 0x3C6EF35F;//from wiki, liniux, gcc, etc
@@ -24,7 +36,7 @@ unsigned char c = 0, k, part1 = 8, part2 = 7, part3 = 8, flag = 0;
 должен быть таким же чётным ( или нечётным для нечётного 4-го байта ManID ).
 Если он не такой - continue  ( генерируем в calc следующее число ).*/
 //i need to compare last bit in manufacturerID and last bit in channel for both even/odd
-        if( (channel & 1) == (mnfctID[3] & 1)){
+        if( (channel & 1) != (mnfctID[3] & 1)){
 /*2. Если channel совпадает с каким-либо из уже полученных ранее номеров
 каналов в массиве, то continue */
 			flag = 0;
@@ -63,14 +75,14 @@ unsigned char c = 0, k, part1 = 8, part2 = 7, part3 = 8, flag = 0;
 и с этим вызовет RadioSetFrequency, в которой отнимет ещё 1 и запишет в трансивер.*/
 //i don`t use Cypress lib, write my self to CYRF. coz i need +3
                     channel_list[c] = channel + 3;//поэтому +3
-//                    TX8_1_PutSHexByte(channel + 3); TX8_1_PutChar(' ');
+                    print_hex8(channel + 3);
                     c++;
                 }
             }
         }
 
     }while(c < 23);
-//	TX8_1_PutChar('/');TX8_1_PutCRLF();
+	put_string("\r\n");
 }
 //=================================================================================================
 void generateDSM2channel(void){/*
@@ -88,8 +100,8 @@ return 9;//true random number
 }
 //=================================================================================================
 unsigned char BIND_procedure(void){
-unsigned int temp_int;
-unsigned char i, loop, error_code = 0;
+unsigned int temp_int, loop;
+unsigned char i, error_code = 0;
 
 	TXbuffer[0] = (0xFF - mnfctID[0]); TXbuffer[1] = (0xFF - mnfctID[1]);
 	TXbuffer[2] = (0xFF - mnfctID[2]); TXbuffer[3] = (0xFF - mnfctID[3]);
@@ -104,13 +116,13 @@ unsigned char i, loop, error_code = 0;
 	TXbuffer[11] = max_channel_num;//# of channels being transmitted			
 	if(max_channel_num < 8){
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xA2;
+			TXbuffer[12] = 0xb2;
 		}else{
 			TXbuffer[12] = 0x01;
 		}
 	}else{
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xB2;
+			TXbuffer[12] = 0xb2;
 		}else{
 			TXbuffer[12] = 0x02;
 		}
@@ -122,7 +134,7 @@ unsigned char i, loop, error_code = 0;
 	TXbuffer[14] = temp_int >> 8; TXbuffer[15] = temp_int & 0xFF;
 	
 	i = generateBINDchannel();
-	loop = 1000;
+	loop = 300;
 	do{
 		loop--;
 		CYRF_init(ORTX_BIND_FLAG);// bind mode
@@ -141,25 +153,29 @@ unsigned char i;
 #endif
 
 	if(control == 0 || control == 1){				//if no BIND mode
-//		if(work_mode & ORTX_USE_DSMX){
-//			row = (channel - 2) % 5;//ok!
-//		}else{
-			row = channel % 5;
-//		}
-//put_string("row "); print_hex8(row);
-		if(control){
-			CYRF_write(0x15, 0xFF - (CRC_SEED & 0xFF));
-			CYRF_write(0x16, 0xFF - (CRC_SEED >> 8));
+		if(work_mode & ORTX_USE_DSMX){
+			row = (channel - 2) % 5;
+			if(control){
+				CYRF_write(0x15, mnfctID[1]);
+				CYRF_write(0x16, mnfctID[0]);
+			}else{
+				CYRF_write(0x15, 0xff - mnfctID[1]);
+				CYRF_write(0x16, 0xff - mnfctID[0]);
+			}
 		}else{
-			CYRF_write(0x15, CRC_SEED & 0xFF);
-			CYRF_write(0x16, CRC_SEED >> 8);
+			row = channel % 5;
+			if(control){
+				CYRF_write(0x15, 0xFF - (CRC_SEED & 0xFF));
+				CYRF_write(0x16, 0xFF - (CRC_SEED >> 8));
+			}else{
+				CYRF_write(0x15, CRC_SEED & 0xFF);
+				CYRF_write(0x16, CRC_SEED >> 8);
+			}
 		}
-//		CYRF_write_block_const(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
-//		CYRF_write_block_const(0xA3, &pncodes[row][data_col][0], 8);	//load DATA
-//		CYRF_write_block_const(0xA3, &pncodes[row][data_col+1][0], 8);
-		CYRF_write_block(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
-		CYRF_write_block(0xA3, &pncodes[row][data_col][0], 8);	//load DATA
-		CYRF_write_block(0xA3, &pncodes[row][data_col+1][0], 8);
+
+		CYRF_write_block_const(0xA2, &pncodes[row][sop_col][0], 8);		// load SOP
+		CYRF_write_block_const(0xA3, &pncodes[row][data_col][0], 8);	//load DATA
+		CYRF_write_block_const(0xA3, &pncodes[row][data_col+1][0], 8);
 	}
 	
 	CYRF_write(0x80, channel);//  - wr CHANNEL_ADR	
@@ -167,7 +183,7 @@ unsigned char i;
 	PORTD.OUTSET = LED;		//LED off
 	
 	//transmit packet
-	CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
+	//CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
 	CYRF_write(0x02, 0x40); //TX_CTRL_ADR = TX CLR				
 	CYRF_write_block(0x20, TXbuffer, 0x10);
 	CYRF_write(0x01, 0x10); //TX_LENGTH_ADR
@@ -182,9 +198,9 @@ unsigned char i;
 	do{
 		if(CYRF_read(0x04) & 0x02){ tcount = 0; /*tflag = 0;*/ }
 	}while( tflag);
-	//while( ! (CYRF_read(0x04) & 0x02) );
+
 	CYRF_write(0x0E,0x00);//all GPIO - low
-//print_hex8(CYRF_read(0x04)); put_char(' ');//TX_IRQ_STATUS_ADR	
+
 	PORTD.OUTCLR = LED;		//LED on
 	//todo: check for error transmition
 
@@ -210,15 +226,12 @@ unsigned char i;
 	}while( tflag );
 
 	PORTD.OUTCLR = LED;		//LED on
-//put_char('=');
-	//CYRF_write(0x0E, 0x00);//XOUT = low
 
 	if(PORTE.IN & CYRF_IRQ){		//прерывание было
 		rssi = CYRF_read(0x13);//  - rd RSSI_ADR 
 		rx_irq_status = CYRF_read(0x07);
 		//был принят пакет
 		if(rx_irq_status & RXC){
-//				LED_Data_ADDR &= ~LED_MASK;	//ON
 			rx_count = CYRF_read(0x09);// - rd RX_COUNT_ADR
 			
 			CYRF_read_block(0x21, RXbuffer, rx_count);//получим принятый пакет в буфер
@@ -259,22 +272,16 @@ unsigned char i;
 		}else{//была ошибка приема	
 			//CYRF_write(0x29, 0x20);// - wr RX_ABORT_ADR = ABORT EN
 			//пауза нужна небольшая
-			//LED_Data_ADDR |= LED_MASK;//OFF
 			CYRF_write(0x8F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
-//put_char('a');
 			while(CYRF_read(0x0F) & 0x20 );
-//put_char('b');			
 			//CYRF_write(0x29, 0x00);// - wr RX_ABORT_ADR
 		}
 	}else{//не было прерывания
 		//CYRF_write(0x29, 0x20);// - wr RX_ABORT_ADR = ABORT EN
-		//asm("nop");asm("nop");asm("nop");asm("nop");asm("nop");asm("nop");
 		CYRF_write(0x0F, 0x2C);// - wr XACT_CFG_ADR = FRC END | Synth Mode (RX) 
-//put_char('c');
 		do{
 			XACT_CFG_ADR = CYRF_read(0x0F);
 		}while(XACT_CFG_ADR & 0x20 );
-//put_char('d');
 		//CYRF_write(0x29, 0x00);// - wr RX_ABORT_ADR
 	}	
 
@@ -282,7 +289,7 @@ unsigned char i;
 }
 //=================================================================================================
 void buildTransmitBuffer(unsigned char top){
-unsigned char i;
+//unsigned char i;
 	if(work_mode & ORTX_USE_DSMX){
 		TXbuffer[0] = mnfctID[2]; TXbuffer[1] = mnfctID[3];
 	}else{
@@ -310,6 +317,15 @@ unsigned char i;
 		}
 	}
 */
+	if(work_mode & ORTX_USE_11bit){
+			TXbuffer[2]= (0<<3) | 0x04; TXbuffer[3]=0x00;
+			TXbuffer[4]= (1<<3) | 0x04; TXbuffer[5]=0x00;
+			TXbuffer[6]= (2<<3) | 0x04; TXbuffer[7]=0x00;
+			TXbuffer[8]= (3<<3) | 0x04; TXbuffer[9]=0x00;
+			TXbuffer[10]= (4<<3) | 0x04; TXbuffer[11]=0x00;
+			TXbuffer[12]= (5<<3) | 0x04; TXbuffer[13]=0x00;
+			TXbuffer[14]= (6<<3) | 0x04; TXbuffer[15]=0x00;
+		}else{
 			TXbuffer[2]= (0<<2) | 0x02; TXbuffer[3]=0x00;
 			TXbuffer[4]= (1<<2) | 0x02; TXbuffer[5]=0x00;
 			TXbuffer[6]= (2<<2) | 0x02; TXbuffer[7]=0x00;
@@ -317,6 +333,7 @@ unsigned char i;
 			TXbuffer[10]= (4<<2) | 0x02; TXbuffer[11]=0x00;
 			TXbuffer[12]= (5<<2) | 0x02; TXbuffer[13]=0x00;
 			TXbuffer[14]= (6<<2) | 0x02; TXbuffer[15]=0x00;
+		}
 }
 /*
 	mnfctID[0] = 0x6d; mnfctID[1] = 0x39; mnfctID[2] = 0xa7; mnfctID[3] = 0xF5; //my

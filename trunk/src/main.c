@@ -159,15 +159,15 @@ unsigned char dsmX_channel_index, CRC_SEED_index = 0;
 
 	if( ! (PORTD.IN & BIND_button)){
 		put_string(" BIND\r\n");
-		ortxRxBuffer[2] = ORTX_BIND_FLAG;
+		ortxRxBuffer[2] = ORTX_BIND_FLAG | ORTX_USE_DSMX | ORTX_USE_11bit;
 	}else{
-		ortxRxBuffer[2] = 0;
+		ortxRxBuffer[2] = 0 | ORTX_USE_DSMX | ORTX_USE_11bit;
 	}
 		ortxRxISRIndex = 18;
 		ortxRxBuffer[0] = 0xAA;
 		ortxRxBuffer[1] = 0;
-		ortxRxBuffer[3] = 0;
-		ortxRxBuffer[4] = 6;
+		ortxRxBuffer[3] = 7;//power
+		ortxRxBuffer[4] = 8;
 		ortxRxBuffer[5] = 0;
 
 while(1){
@@ -195,13 +195,11 @@ while(1){
 				}else{
 					generateDSM2channel();
 				}
-				//sop_col = ((0xFF - mnfctID[0]) + (0xFF - mnfctID[1]) + (0xFF - mnfctID[2]) + 2) & 7;
 				sop_col = (mnfctID[0] + mnfctID[1] + mnfctID[2] + 2) & 7;
 				data_col = 7 - sop_col;
-				//CRC_SEED = (mnfctID[0] << 8) + mnfctID[1]; 
-				CRC_SEED = 0xFFFF - (( mnfctID[0] << 8) | mnfctID[1]);
-				put_string("CRC_SEED "); print_hex8(CRC_SEED>>8);print_hex8(CRC_SEED);
-				put_string("sop_col "); print_hex8(sop_col);
+				//CRC_SEED = 0xFFFF - (( mnfctID[0] << 8) | mnfctID[1]);
+				//put_string("CRC_SEED "); print_hex8(CRC_SEED>>8);print_hex8(CRC_SEED);
+				//put_string("sop_col "); print_hex8(sop_col);
 			break;
 			case 0x01:												//first 7 channel data
 				for(i = 0; i < 7; i++){
@@ -222,11 +220,20 @@ while(1){
 	if(work_mode & ORTX_USE_DSMX){
 //DSMX mode
 		for(dsmX_channel_index = 0; dsmX_channel_index < 23; dsmX_channel_index++){
+			//промежканальная пауза
+			if(CRC_SEED_index){
+				//main_tcount = 185;
+				main_tcount = 100;
+			}else{
+				main_tcount = 40;
+			}
+			buildTransmitBuffer(CRC_SEED_index);
 			transmit_receive(channel_list[dsmX_channel_index], CRC_SEED_index);
+			main_tflag = 1; while(main_tflag);
+			
+			if(CRC_SEED_index)CRC_SEED_index = 0;
+			else CRC_SEED_index = 1;
 		}
-		if(CRC_SEED_index)CRC_SEED_index = 0;
-		else CRC_SEED_index = 1;
-		//промежканальная пауза
 	}else{
 //DSM2 mode	
 		//build transmit data for first seven channels
