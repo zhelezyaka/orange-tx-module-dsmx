@@ -1,5 +1,5 @@
 #include "main.h"
-
+int vvval=0;
 //=====================================================================================================================
 // generate DSMX channel list
 void generateDSMXchannel_list(void){
@@ -117,13 +117,13 @@ unsigned char i, error_code = 0;
 //0xB2 - 11 msec
 	if(max_channel_num < 8){
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xA2;
+			TXbuffer[12] = 0xa2;
 		}else{
 			TXbuffer[12] = 0x01;
 		}
 	}else{
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xA2;
+			TXbuffer[12] = 0xa2;
 		}else{
 			TXbuffer[12] = 0x02;
 		}
@@ -178,7 +178,8 @@ unsigned char i;
 	PORTD.OUTSET = LED;		//LED off
 	
 	//transmit packet
-	//CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
+	CYRF_write(0x0E,0x00);//all GPIO - low
+	
 	CYRF_write(0x02, 0x40); //TX_CTRL_ADR = TX CLR				
 	CYRF_write_block(0x20, TXbuffer, 0x10);
 	CYRF_write(0x01, 0x10); //TX_LENGTH_ADR
@@ -194,7 +195,7 @@ unsigned char i;
 		if(CYRF_read(0x04) & 0x02){ tcount = 0; /*tflag = 0;*/ }
 	}while( tflag);
 
-	CYRF_write(0x0E,0x00);//all GPIO - low
+	CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
 
 	PORTD.OUTCLR = LED;		//LED on
 	//todo: check for error transmition
@@ -213,7 +214,7 @@ unsigned char i;
 	if(control & ORTX_BIND_FLAG){
 		tcount = 120; // 12 mSec in BIND mode
 	}else{
-		tcount = 10; // 1 mSec in normal mode telemetry answer
+		tcount = 20; // 1 mSec in normal mode telemetry answer
 	}
 	tflag = 1;// устанавливаем флаг	
 	do{
@@ -247,16 +248,8 @@ unsigned char i;
 				}
 			#endif			
 
-			if(rx_count == 0x10 && !(rx_irq_status & RXE)){
-				if(work_mode & ORTX_USE_DSMX){
-					if(RXbuffer[0] == mnfctID[0] && RXbuffer[1] == mnfctID[1]){
-						error_code = ORTX_USE_TM;	//telemetry answer
-					}
-				}else{
-					if(RXbuffer[0] == (0xFF - mnfctID[0]) && RXbuffer[1] == (0xFF - mnfctID[1]) ){
-						error_code = ORTX_USE_TM;	//telemetry answer
-					}
-				}
+			if(rx_count == 0x10 /*&& (rx_irq_status & RXE) */){
+				error_code = ORTX_USE_TM;	//telemetry answer
 			}
 			
 			if(control == ORTX_BIND_FLAG && rx_count == 10//  && !(rx_irq_status & RXE)
@@ -313,13 +306,34 @@ void buildTransmitBuffer(unsigned char top){
 	}
 */
 	if(work_mode & ORTX_USE_11bit){
-			TXbuffer[2]= (0<<3) | 0x00; TXbuffer[3]=0x00;
-			TXbuffer[4]= (1<<3) | 0x04; TXbuffer[5]=0x00;
+		if(top){
+			TXbuffer[2]= (7<<3) | 0x84; TXbuffer[3]=0x00;
+			TXbuffer[4]= (8<<3) | 0x04; TXbuffer[5]=0x00;
+			TXbuffer[6]= (9<<3) | 0x04; TXbuffer[7]=0x00;
+			TXbuffer[8]= (10<<3) | 0x04; TXbuffer[9]=0x00;
+			TXbuffer[10]=(11<<3) | 0x04; TXbuffer[11]=0x00;
+			TXbuffer[12]=(12<<3) | 0x04; TXbuffer[13]=0x00;
+			TXbuffer[14]=(13<<3) | 0x04; TXbuffer[15]=0x00;
+		}else{
+			vvval+=5;
+			if(vvval >= 2047)vvval = 0;
+			TXbuffer[2]= (0<<3) | 0x04; TXbuffer[3]=0x00;
+			TXbuffer[4]= (1<<3) | (vvval >>8); TXbuffer[5]=vvval;
 			TXbuffer[6]= (2<<3) | 0x04; TXbuffer[7]=0x00;
 			TXbuffer[8]= (3<<3) | 0x04; TXbuffer[9]=0x00;
 			TXbuffer[10]= (4<<3) | 0x04; TXbuffer[11]=0x00;
 			TXbuffer[12]= (5<<3) | 0x04; TXbuffer[13]=0x00;
-			TXbuffer[14]= (6<<3) | 0x04; TXbuffer[15]=0x00;
+			TXbuffer[14]= (6<<3) | 0x04; TXbuffer[15]=0xff;	
+		}
+	}else{
+		if(top){
+			TXbuffer[2]= (7<<2) | 0x02; TXbuffer[3]=0x00;
+			TXbuffer[4]= (8<<2) | 0x02; TXbuffer[5]=0x00;
+			TXbuffer[6]= (9<<2) | 0x02; TXbuffer[7]=0x00;
+			TXbuffer[8]= (10<<2) | 0x02; TXbuffer[9]=0x00;
+			TXbuffer[10]= (11<<2) | 0x02; TXbuffer[11]=0x00;
+			TXbuffer[12]= (12<<2) | 0x02; TXbuffer[13]=0x00;
+			TXbuffer[14]= (13<<2) | 0x02; TXbuffer[15]=0x00;
 		}else{
 			TXbuffer[2]= (0<<2) | 0x02; TXbuffer[3]=0x00;
 			TXbuffer[4]= (1<<2) | 0x02; TXbuffer[5]=0x00;
@@ -329,6 +343,7 @@ void buildTransmitBuffer(unsigned char top){
 			TXbuffer[12]= (5<<2) | 0x02; TXbuffer[13]=0x00;
 			TXbuffer[14]= (6<<2) | 0x02; TXbuffer[15]=0x00;
 		}
+	}
 }
 /*
 	mnfctID[0] = 0x6d; mnfctID[1] = 0x39; mnfctID[2] = 0xa7; mnfctID[3] = 0xF5; //my
