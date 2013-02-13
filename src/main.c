@@ -147,7 +147,7 @@ unsigned char spi(unsigned char data){
 //=====================================================================================================================
 int main(void){
 unsigned char i;
-unsigned char dsmX_channel_index, CRC_SEED_index = 0;
+unsigned char dsmX_channel_index = 0, CRC_SEED_index = 0;
 
 	init();
 	
@@ -159,15 +159,15 @@ unsigned char dsmX_channel_index, CRC_SEED_index = 0;
 
 	if( ! (PORTD.IN & BIND_button)){
 		put_string(" BIND\r\n");
-		ortxRxBuffer[2] = ORTX_BIND_FLAG;// | ORTX_USE_DSMX | ORTX_USE_11bit;
+		ortxRxBuffer[2] = ORTX_BIND_FLAG | ORTX_USE_DSMX | ORTX_USE_11bit;
 	}else{
-		ortxRxBuffer[2] = 0;// | ORTX_USE_DSMX | ORTX_USE_11bit;
+		ortxRxBuffer[2] = 0 | ORTX_USE_DSMX | ORTX_USE_11bit;
 	}
 		ortxRxISRIndex = 18;
 		ortxRxBuffer[0] = 0xAA;
 		ortxRxBuffer[1] = 0;
 		ortxRxBuffer[3] = 0;//7;//power
-		ortxRxBuffer[4] = 6;
+		ortxRxBuffer[4] = 8;
 		ortxRxBuffer[5] = 0;
 
 while(1){
@@ -219,45 +219,65 @@ while(1){
 	//transmit data packet and receive telemetry answer
 	if(work_mode & ORTX_USE_DSMX){
 //DSMX mode
-		for(dsmX_channel_index = 0; dsmX_channel_index < 23; dsmX_channel_index++){
-			//промежканальная пауза
-			if(CRC_SEED_index){
-				//main_tcount = 185;
-				//main_tcount = 100;
-				main_tcount = 70;
-			}else{
-				main_tcount = 40;
+		//for(dsmX_channel_index = 0; dsmX_channel_index < 23; dsmX_channel_index++){
+			buildTransmitBuffer(0);
+			main_tcount = 40; // - пауза между каналами 4 мсек
+			main_tflag = 1;
+			if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){}//				put_string("0[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
+			if(dsmX_channel_index == 23)dsmX_channel_index = 0;
+			if(CRC_SEED_index)CRC_SEED_index = 0;else CRC_SEED_index = 1;
+			while(main_tflag);
+			main_tcount = 70; // 7 mSec
+			main_tflag = 1;
+			if(max_channel_num < 8){
+				TXbuffer[2] |= 0x80;
 			}
-			buildTransmitBuffer(CRC_SEED_index);
-			if(CRC_SEED_index == 0)TXbuffer[2] |= 0x80;
-			transmit_receive(channel_list[dsmX_channel_index], CRC_SEED_index);
-			main_tflag = 1; while(main_tflag);
-			
-			if(CRC_SEED_index)CRC_SEED_index = 0;
-			else CRC_SEED_index = 1;
-		}
+			if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){}//				put_string("1[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
+			while(main_tflag);
+			if(dsmX_channel_index == 23)dsmX_channel_index = 0;
+			if(CRC_SEED_index)CRC_SEED_index = 0;else CRC_SEED_index = 1;
+
+			if(max_channel_num > 7){
+				buildTransmitBuffer(1); // for 14 channel ok
+				main_tcount = 40; // - пауза между каналами 4 мсек
+				main_tflag = 1;
+				if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){}//				put_string("[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
+				if(dsmX_channel_index == 23)dsmX_channel_index = 0;
+				if(CRC_SEED_index)CRC_SEED_index = 0;else CRC_SEED_index = 1;
+				while(main_tflag);
+				main_tcount = 70; // 7 mSec
+				main_tflag = 1;
+				if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){}//				put_string("[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}			while(main_tflag);
+				if(dsmX_channel_index == 23)dsmX_channel_index = 0;
+				if(CRC_SEED_index)CRC_SEED_index = 0;else CRC_SEED_index = 1;
+				while(main_tflag);
+			}else{
+				main_tcount = 40;main_tflag = 1;while(main_tflag);
+				main_tcount = 70;main_tflag = 1;while(main_tflag);
+			}
+		//}
 	}else{
 //DSM2 mode	
 		//build transmit data for first seven channels
 		buildTransmitBuffer(0);
 		main_tcount = 40; // - пауза между каналами 4 мсек
 		main_tflag = 1;
-		transmit_receive(channelA, 0);
+		if(transmit_receive(channelA, 0) == ORTX_USE_TM){}//		put_string("0[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");	}
 		while(main_tflag);
 		main_tcount = 70; // 7 mSec
 		main_tflag = 1;
 		TXbuffer[2] |= 0x80;
-		transmit_receive(channelB, 1);
+		if(transmit_receive(channelB, 1) == ORTX_USE_TM){}//		put_string("1[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");		}
 		while(main_tflag);
 
 		if(max_channel_num > 7){
 			main_tcount = 40; // - пауза между каналами 4 мсек
 			main_tflag = 1;
 			buildTransmitBuffer(1);
-			transmit_receive(channelA, 0);			
+			if(transmit_receive(channelA, 0) == ORTX_USE_TM){}//		put_string("2[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
 			while(main_tflag);
 			main_tcount = 70; // 7 mSec
-			transmit_receive(channelB, 1);			
+			if(transmit_receive(channelB, 1) == ORTX_USE_TM){}//		put_string("3[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
 			main_tflag = 1;
 			while(main_tflag);
 		}else{
