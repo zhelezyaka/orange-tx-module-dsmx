@@ -117,13 +117,13 @@ unsigned char i, error_code = 0;
 //0xB2 - 11 msec
 	if(max_channel_num < 8){
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xa2;
+			TXbuffer[12] = 0xb2;
 		}else{
 			TXbuffer[12] = 0x01;
 		}
 	}else{
 		if (work_mode & ORTX_USE_DSMX){
-			TXbuffer[12] = 0xa2;
+			TXbuffer[12] = 0xb2;
 		}else{
 			TXbuffer[12] = 0x02;
 		}
@@ -144,6 +144,8 @@ unsigned char i, error_code = 0;
 			error_code = 1;
 		}
 	}while(loop);
+	
+	max_channel_num = 6;
 return error_code;
 }
 //=================================================================================================
@@ -178,7 +180,7 @@ unsigned char i;
 	PORTD.OUTSET = LED;		//LED off
 	
 	//transmit packet
-	CYRF_write(0x0E,0x00);//all GPIO - low
+	CYRF_write(0x0E,0x20);//PACTL
 	
 	CYRF_write(0x02, 0x40); //TX_CTRL_ADR = TX CLR				
 	CYRF_write_block(0x20, TXbuffer, 0x10);
@@ -195,7 +197,7 @@ unsigned char i;
 		if(CYRF_read(0x04) & 0x02){ tcount = 0; /*tflag = 0;*/ }
 	}while( tflag);
 
-	CYRF_write(0x0E, 0x80 | 0x20);//XOUT and PACTL - high
+	CYRF_write(0x0E, 0);//XOUT and PACTL - low
 
 	PORTD.OUTCLR = LED;		//LED on
 	//todo: check for error transmition
@@ -315,7 +317,7 @@ void buildTransmitBuffer(unsigned char top){
 			TXbuffer[12]=(12<<3) | 0x04; TXbuffer[13]=0x00;
 			TXbuffer[14]=(13<<3) | 0x04; TXbuffer[15]=0x00;
 		}else{
-			vvval+=5;
+			vvval++;
 			if(vvval >= 2047)vvval = 0;
 			TXbuffer[2]= (0<<3) | 0x04; TXbuffer[3]=0x00;
 			TXbuffer[4]= (1<<3) | (vvval >>8); TXbuffer[5]=vvval;

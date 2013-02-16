@@ -147,7 +147,7 @@ unsigned char spi(unsigned char data){
 //=====================================================================================================================
 int main(void){
 unsigned char i;
-unsigned char dsmX_channel_index = 0, CRC_SEED_index = 0;
+unsigned char dsmX_channel_index = 1, CRC_SEED_index = 0;
 
 	init();
 	
@@ -167,7 +167,7 @@ unsigned char dsmX_channel_index = 0, CRC_SEED_index = 0;
 		ortxRxBuffer[0] = 0xAA;
 		ortxRxBuffer[1] = 0;
 		ortxRxBuffer[3] = 0;//7;//power
-		ortxRxBuffer[4] = 8;
+		ortxRxBuffer[4] = 6;
 		ortxRxBuffer[5] = 0;
 
 while(1){
@@ -219,11 +219,10 @@ while(1){
 	//transmit data packet and receive telemetry answer
 	if(work_mode & ORTX_USE_DSMX){
 //DSMX mode
-		//for(dsmX_channel_index = 0; dsmX_channel_index < 23; dsmX_channel_index++){
 			buildTransmitBuffer(0);
 			main_tcount = 40; // - пауза между каналами 4 мсек
 			main_tflag = 1;
-			if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){}//				put_string("0[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
+			if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){put_char("!");}//				put_string("0[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
 			if(dsmX_channel_index == 23)dsmX_channel_index = 0;
 			if(CRC_SEED_index)CRC_SEED_index = 0;else CRC_SEED_index = 1;
 			while(main_tflag);
@@ -232,7 +231,7 @@ while(1){
 			if(max_channel_num < 8){
 				TXbuffer[2] |= 0x80;
 			}
-			if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){}//				put_string("1[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
+			if(transmit_receive(channel_list[dsmX_channel_index++], CRC_SEED_index) == ORTX_USE_TM){put_char("!");}//				put_string("1[");for(i = 0; i < 0x10; i++){print_hex8(RXbuffer[i]);}put_string("]\r\n");			}
 			while(main_tflag);
 			if(dsmX_channel_index == 23)dsmX_channel_index = 0;
 			if(CRC_SEED_index)CRC_SEED_index = 0;else CRC_SEED_index = 1;
@@ -255,7 +254,6 @@ while(1){
 				main_tcount = 40;main_tflag = 1;while(main_tflag);
 				main_tcount = 70;main_tflag = 1;while(main_tflag);
 			}
-		//}
 	}else{
 //DSM2 mode	
 		//build transmit data for first seven channels
