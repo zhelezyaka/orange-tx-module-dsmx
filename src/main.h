@@ -17,7 +17,7 @@ extern unsigned char channel_list[23];
 extern unsigned char work_mode, max_channel_num;
 extern unsigned int CRC_SEED;
 extern unsigned char tflag;
-extern unsigned int tcount;
+extern unsigned int tcount,main_tcount;
 extern unsigned char channelA, channelB;
 extern unsigned int channelsData[14];
 
